@@ -31,7 +31,7 @@ int main() {
         }
     };
 
-    net.train(xor_data, 500000, 4, 3.0f);
+    net.train(xor_data, 5000, 4, 3.0f);
 
     for (auto& s : xor_data) {
         std::cout << s.x[0] << "," << s.x[1] << " -> " << net.feed_forward(s.x)[0] << "\n";

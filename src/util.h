@@ -17,7 +17,8 @@ namespace util {
     }
 
     inline float sigmoid_derivative(float z) {
-        float s = sigmoid(z); return s * (1.0f - s);
+        float s = sigmoid(z);
+        return s * (1.0f - s);
     }
 }
 

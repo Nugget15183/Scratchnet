@@ -5,8 +5,6 @@
 
 using namespace util;
 
-//c
-
 Network::Network(const vector<int> &sizes) {
     normal_distribution<float> dist(0.0f, 1.0f);
 
@@ -47,15 +45,18 @@ vector<float> Network::feed_forward(vector<float> a) {
 
 void Network::train(vector<Sample> data, int epochs, int batch_size, float eta) {
     for (int e = 0; e < epochs; e++) {
+        //shuffle the data to help reduce the chance of overfitting
         shuffle(data.begin(), data.end(), rng);
 
+        //cut the data into batches to speed up testing
         for (size_t i = 0; i < data.size(); i+=batch_size) {
             size_t end = std::min(i + (size_t)batch_size, data.size());
             update_mini_batch(data, i, end, eta);
         }
 
+        //give the output updates on how training is going
         if (e % 500 == 0) {
-            cout << "Epoch " << e << " Loss: " << eval(data) << endl;
+            cout << "Epoch " << e << " Error: " << eval(data) << endl;
         }
     }
 }
