@@ -6,9 +6,8 @@
 #define AI_LEARNING_UTIL_H
 
 #include <cmath>
-#include <random>
 
-#include "numbers"
+
 
 using namespace std;
 

@@ -5,6 +5,8 @@
 
 using namespace util;
 
+//c
+
 Network::Network(const vector<int> &sizes) {
     normal_distribution<float> dist(0.0f, 1.0f);
 
