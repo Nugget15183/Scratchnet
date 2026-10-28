@@ -1,8 +1,82 @@
 #ifndef AI_LEARNING_WINDOW_H
 #define AI_LEARNING_WINDOW_H
 
-class Window {
+#include <string>
+#include <vector>
 
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
+
+#include <glm/glm.hpp>
+
+#include "Network.h"
+
+/*TODO
+ * UI
+ *   Graph showing error and time
+ *        Dropdown to swap between logarithmic scale and linear
+ *   Small graphing calculator + ability for ai to train on that graph the user inputs
+ *   Parameters section for user to change things around
+ */
+
+class Window {
+public:
+    Window(Network* net) {this->net = net;}
+
+    void init();
+    void render();
+    void update();
+    void shutdown();
+
+    GLFWwindow* getWindow() { return window; }
+
+    void output(const std::string& msg) { log.push_back(msg); scrollToBottom = true; }
+private:
+    void drawUI();
+
+    GLFWwindow* window = nullptr;
+    glm::vec2 winSize = {800, 600};
+
+    std::vector<std::string> log;
+    bool scrollToBottom = false;
+
+    Network* net;
+
+    bool cancelling = false;
+    bool training = false;
+    bool beginTraining = false;
+
+    //params
+    float learning_rate = 0.01f;
+    float eta = 3.0f;
+    int batch_size = 4;
+    int epochs = 5000;
+    bool resetWeights = true;
+    vector<int> sizes = {2, 4, 1};
+
+    //data
+    vector<Sample> data = {
+        //input output pair 1
+        {
+            {0, 0},
+            {0}
+        },
+        //input output pair 2
+        {
+                    {0, 1},
+                    {1}
+        },
+        //input output pair 3
+        {
+                    {1, 0},
+                    {1}
+        },
+        //input output pair 4
+        {
+                    {1, 1},
+                    {0}
+        }
+    };
 };
 
 

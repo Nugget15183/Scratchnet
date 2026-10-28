@@ -1,13 +1,7 @@
-//
-// Created by conte on 10/26/2026.
-//
-
 #ifndef AI_LEARNING_UTIL_H
 #define AI_LEARNING_UTIL_H
 
 #include <cmath>
-
-
 
 using namespace std;
 

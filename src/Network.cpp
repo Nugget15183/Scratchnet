@@ -5,10 +5,14 @@
 
 using namespace util;
 
-Network::Network(const vector<int> &sizes) {
+void Network::ResetWeightsToRand(const vector<int> &sizes) {
     normal_distribution<float> dist(0.0f, 1.0f);
 
     //assign random starting values to biases and weights
+
+    biases.clear();
+    weights.clear();
+
     for (size_t l = 0; l + 1 < sizes.size(); l++) {
         biases.emplace_back(sizes[l + 1]);
         weights.emplace_back(sizes[l + 1], vector<float>(sizes[l]));
@@ -21,6 +25,10 @@ Network::Network(const vector<int> &sizes) {
             for (auto& w : row) w = dist(rng);
         }
     }
+}
+
+Network::Network(const vector<int> &sizes) {
+    ResetWeightsToRand(sizes);
 }
 
 vector<float> Network::feed_forward(vector<float> a) {
@@ -43,8 +51,13 @@ vector<float> Network::feed_forward(vector<float> a) {
     return a;
 }
 
-void Network::train(vector<Sample> data, int epochs, int batch_size, float eta) {
+void Network::train(vector<Sample> data, int epochs, int batch_size, float eta, bool& cancelling) {
     for (int e = 0; e < epochs; e++) {
+        if (cancelling) {
+            cancelling = false;
+            break;
+        }
+
         //shuffle the data to help reduce the chance of overfitting
         shuffle(data.begin(), data.end(), rng);
 

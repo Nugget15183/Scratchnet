@@ -20,11 +20,12 @@ struct Sample {
 class Network {
 public:
     Network(const vector<int>& sizes);
+    void ResetWeightsToRand(const vector<int> &sizes);
 
     vector<float> feed_forward(vector<float> a);
 
     //trains the weights and biases in the neruons
-    void train(vector<Sample> data, int epochs, int batch_size, float eta);
+    void train(vector<Sample> data, int epochs, int batch_size, float eta, bool& cancel);
 private:
     //define weights and biases
     using Biases = vector<vector<float>>;
