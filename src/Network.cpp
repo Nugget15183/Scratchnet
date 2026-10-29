@@ -1,5 +1,6 @@
 #include "Network.h"
 
+#include <functional>
 #include <iostream>
 #include <vector>
 
@@ -51,12 +52,9 @@ vector<float> Network::feed_forward(vector<float> a) {
     return a;
 }
 
-void Network::train(vector<Sample> data, int epochs, int batch_size, float eta, bool& cancelling) {
+void Network::train(vector<Sample> data, int epochs, int batch_size, float eta, int reportEvery, atomic_bool& cancelling, std::function<void(int, float)> err_callback) {
     for (int e = 0; e < epochs; e++) {
-        if (cancelling) {
-            cancelling = false;
-            break;
-        }
+        if (cancelling) break;
 
         //shuffle the data to help reduce the chance of overfitting
         shuffle(data.begin(), data.end(), rng);
@@ -68,8 +66,14 @@ void Network::train(vector<Sample> data, int epochs, int batch_size, float eta, 
         }
 
         //give the output updates on how training is going
-        if (e % 500 == 0) {
-            cout << "Epoch " << e << " Error: " << eval(data) << endl;
+        if (e % reportEvery == 0) {
+            float err = eval(data);
+
+            cout << "Epoch " << e << " Error: " << err << endl;
+
+            if (err_callback != nullptr) {
+                err_callback(e, err);
+            }
         }
     }
 }

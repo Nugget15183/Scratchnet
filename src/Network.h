@@ -5,6 +5,7 @@
 
 #include <random>
 
+#include <functional>
 #include "util.h"
 
 //c
@@ -25,7 +26,7 @@ public:
     vector<float> feed_forward(vector<float> a);
 
     //trains the weights and biases in the neruons
-    void train(vector<Sample> data, int epochs, int batch_size, float eta, bool& cancel);
+    void train(vector<Sample> data, int epochs, int batch_size, float eta, int reportEvery, atomic_bool& cancel, std::function<void(int, float)> err_callback=nullptr);
 private:
     //define weights and biases
     using Biases = vector<vector<float>>;

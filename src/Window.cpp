@@ -4,6 +4,8 @@
 #include <iostream>
 #include "util.h"
 
+#include "implot.h"
+
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
@@ -59,6 +61,8 @@ void Window::init() {
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.IniFilename = "imgui.ini"; //saves window layout
 
+    ImPlot::CreateContext();
+
     ImGui::StyleColorsClassic();
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
@@ -71,15 +75,29 @@ void Window::init() {
 
 void Window::update() {
     if (beginTraining && !training && !cancelling) {
-        training = true;
+        if (trainThread.joinable()) trainThread.join();
+
         beginTraining = false;
+        cancelling = false;
 
         if (resetWeights) {
             net->ResetWeightsToRand(sizes);
         }
 
-        std::cout << "Beginning training..." << std::endl;
-        net->train(data, epochs, batch_size, eta, cancelling);
+        {
+            lock_guard lk(lossMutex);
+            history.clear();
+        }
+
+        training = true;
+
+        trainThread = std::thread([this, d = data, ep = epochs, bs = batch_size, et = eta, re = reportEvery]() -> void {
+            net->train(d, ep, bs, et, re, cancelling, [this](int epochs, float err) -> void {
+                lock_guard lk(lossMutex);
+                history.push_back({epochs, err});
+            });
+            training=false;
+        });
 
         training = false;
     }
@@ -104,6 +122,33 @@ void Window::drawUI() {
         for (auto& s : data) {
             std::cout << s.x[0] << "," << s.x[1] << " -> " << net->feed_forward(s.x)[0] << "\n";
         }
+    }
+
+    ImGui::End();
+
+    ImGui::Begin("Error Graph");
+    ImGui::Checkbox("Log Scale", &logscale);
+
+    std::vector<glm::vec2> snap;
+
+    {
+        std::lock_guard lk(lossMutex);
+        snap = history;
+    }
+
+    if (ImPlot::BeginPlot("##loss", ImGui::GetContentRegionAvail())) {
+        //label the axes
+        ImPlot::SetupAxes("Epoch", "Loss", ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
+
+        //toggle between log scale and linear
+        if (logscale) {
+            ImPlot::SetupAxisScale(ImAxis_Y1, ImPlotScale_Log10);
+        }
+
+        if (!snap.empty()) {
+            ImPlot::PlotLine("Loss", &snap[0].x, &snap[0].y, (int)snap.size(), 0, 0, sizeof(glm::vec2));
+        }
+        ImPlot::EndPlot();
     }
 
     ImGui::End();
@@ -133,8 +178,12 @@ void Window::render() {
 }
 
 void Window::shutdown() {
+    cancelling = true;
+    if (trainThread.joinable()) trainThread.join();
+
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
+    ImPlot::DestroyContext();
     ImGui::DestroyContext();
 
     glfwDestroyWindow(window);

@@ -11,6 +11,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(imgui)
 
+FetchContent_Declare(
+        implot
+        GIT_REPOSITORY https://github.com/epezent/implot
+        GIT_TAG        v0.16
+)
+FetchContent_MakeAvailable(implot)
+
 #build glm
 add_library(glm INTERFACE)
 target_include_directories(glm INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/packages/glm)
@@ -33,11 +40,16 @@ add_library(imgui STATIC
         ${imgui_SOURCE_DIR}/imgui_demo.cpp
         ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
         ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
+
+        ${implot_SOURCE_DIR}/implot.cpp
+        ${implot_SOURCE_DIR}/implot_items.cpp
+        ${implot_SOURCE_DIR}/implot_demo.cpp
 )
 
 target_include_directories(imgui PUBLIC
         ${imgui_SOURCE_DIR}
         ${imgui_SOURCE_DIR}/backends
+        ${implot_SOURCE_DIR}
 )
 
 target_link_libraries(imgui PUBLIC glfw)

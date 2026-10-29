@@ -1,7 +1,9 @@
 #ifndef AI_LEARNING_WINDOW_H
 #define AI_LEARNING_WINDOW_H
 
+#include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <glad/glad.h>
@@ -42,9 +44,12 @@ private:
 
     Network* net;
 
-    bool cancelling = false;
-    bool training = false;
-    bool beginTraining = false;
+    atomic_bool cancelling = false;
+    atomic_bool training = false;
+    atomic_bool beginTraining = false;
+
+    thread trainThread;
+    mutex lossMutex;
 
     //params
     float learning_rate = 0.01f;
@@ -53,6 +58,12 @@ private:
     int epochs = 5000;
     bool resetWeights = true;
     vector<int> sizes = {2, 4, 1};
+
+    //x is epoch y is loss
+    vector<glm::vec2> history;
+
+    bool logscale = false;
+    int reportEvery = 500;
 
     //data
     vector<Sample> data = {
