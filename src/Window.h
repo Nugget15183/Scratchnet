@@ -13,14 +13,6 @@
 
 #include "Network.h"
 
-/*TODO
- * UI
- *   Graph showing error and time
- *        Dropdown to swap between logarithmic scale and linear
- *   Small graphing calculator + ability for ai to train on that graph the user inputs
- *   Parameters section for user to change things around
- */
-
 class Window {
 public:
     Window(Network* net) {this->net = net;}
