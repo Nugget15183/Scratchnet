@@ -40,7 +40,7 @@ A Customizable nerual network, built from scratch in C++.
 4. Try 7 epochs of MNIST with, and without ADAM
 
 ## Downloading
-Go to the downloads page and download the latest release, unzip the file zipped download file and run the .exe
+Go to the downloads page and download the latest release, unzip the zipped download file and run the .exe
 
 ## Building it yourself
 
