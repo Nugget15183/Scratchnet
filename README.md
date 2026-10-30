@@ -7,8 +7,8 @@ A Customizable nerual network, built from scratch in C++.
 
 **Network**
 
-- Fully Connected feed-forward network with any number of hidden layers, each with a customizable amount of neurons from 1 to 64.
-- Many hidden and output activations to test from
+- Fully Connected feed-forward network with any number of hidden layers, each hidden layer with a customizable amount of neurons from 1 to 64.
+- 4 hidden and output activations to test from
   - Sigmoid
   - Tanh
   - ReLU
@@ -16,7 +16,6 @@ A Customizable nerual network, built from scratch in C++.
 - Weight initialization matches the selected activation function
   - He (ReLU and Leaky ReLU)
   - Xavier (used foreverything except the ReLUs)
-- Mini-batch training that gets shuffled each epoch
 - Two different optimizers to chose from
   - ADAM (Comes with adjustable B1 and B2)
   - SGD
@@ -26,12 +25,11 @@ A Customizable nerual network, built from scratch in C++.
 - Training is run on a background thread, so the ui stays responsive
 - Live error graph with a log scale toggle, each run is stored so you can compare them
 - Testing your network on various math functions to see how it fairs
-- - f(x) = x
-- - f(x) = |x|
-- - f(x) = x^2
-- - f(x) = sin x
-- - f(x) = sin x + 0.5 * sin x
-- bitwise operation training
+  - f(x) = x
+  - f(x) = |x|
+  - f(x) = x^2
+  - f(x) = sin x
+  - f(x) = sin x + 0.5 * sin x
 - cancel training at any time
 - MNIST image previewer aswell as bar graphs displaying the networks confidence guesses
 
