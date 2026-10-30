@@ -6,8 +6,8 @@
 
 using namespace util;
 
-void Network::ResetWeightsToRand(const vector<int> &sizes) {
-    normal_distribution<float> dist(0.0f, 1.0f);
+void Network::ResetWeightsToRand(const vector<int> &newSizes) {
+    sizes = newSizes;
 
     //assign random starting values to biases and weights
 
@@ -15,6 +15,8 @@ void Network::ResetWeightsToRand(const vector<int> &sizes) {
     weights.clear();
 
     for (size_t l = 0; l + 1 < sizes.size(); l++) {
+        normal_distribution<float> dist(0.0f, 1.0f / std::sqrt(sizes[l]));
+
         biases.emplace_back(sizes[l + 1]);
         weights.emplace_back(sizes[l + 1], vector<float>(sizes[l]));
 

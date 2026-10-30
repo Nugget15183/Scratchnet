@@ -29,7 +29,7 @@ private:
     void drawUI();
 
     GLFWwindow* window = nullptr;
-    glm::vec2 winSize = {800, 600};
+    glm::vec2 winSize = {1000, 600};
 
     std::vector<std::string> log;
     bool scrollToBottom = false;
@@ -52,7 +52,11 @@ private:
     vector<int> sizes = {2, 4, 1};
 
     //x is epoch y is loss
-    vector<glm::vec2> history;
+    //latest training run
+    vector<glm::vec2> latest_history;
+
+    //stores all the training runs
+    vector<vector<glm::vec2>> history;
 
     bool logscale = false;
     int reportEvery = 500;

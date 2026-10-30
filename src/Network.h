@@ -23,6 +23,7 @@ public:
     Network(const vector<int>& sizes);
     void ResetWeightsToRand(const vector<int> &sizes);
 
+    vector<int> getSizes() {return sizes;}
     vector<float> feed_forward(vector<float> a);
 
     //trains the weights and biases in the neruons

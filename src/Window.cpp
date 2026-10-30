@@ -70,23 +70,29 @@ void Window::init() {
 
     setupStyle();
 
+    sizes = {(int) data[0].x.size(), 4, (int)data[0].y.size()};
+
     std::cout << "Loading Complete" << std::endl;
 }
 
 void Window::update() {
-    if (beginTraining && !training && !cancelling) {
+    if (beginTraining && !training) {
         if (trainThread.joinable()) trainThread.join();
 
         beginTraining = false;
         cancelling = false;
 
-        if (resetWeights) {
+        if (resetWeights || sizes != net->getSizes()) {
             net->ResetWeightsToRand(sizes);
         }
 
+
         {
             lock_guard lk(lossMutex);
-            history.clear();
+            if (!latest_history.empty()) {
+                history.push_back(std::move(latest_history));
+            }
+            latest_history.clear();
         }
 
         training = true;
@@ -94,17 +100,16 @@ void Window::update() {
         trainThread = std::thread([this, d = data, ep = epochs, bs = batch_size, et = eta, re = reportEvery]() -> void {
             net->train(d, ep, bs, et, re, cancelling, [this](int epochs, float err) -> void {
                 lock_guard lk(lossMutex);
-                history.push_back({epochs, err});
+                latest_history.push_back({epochs, err});
             });
             training=false;
         });
-
-        training = false;
     }
 }
 
 void Window::drawUI() {
     ImGui::Begin("Parameters");
+
     ImGui::SliderFloat("Learning Rate", &learning_rate, 0.000001f, 1.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
     ImGui::SliderFloat("ETA", &eta, 0.1f, 10.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
     ImGui::InputInt("Epochs", &epochs);
@@ -118,12 +123,53 @@ void Window::drawUI() {
         beginTraining = true;
     }
 
+    ImGui::BeginDisabled(training);
     if (ImGui::Button("Test On Current Training Data")) {
         for (auto& s : data) {
             std::cout << s.x[0] << "," << s.x[1] << " -> " << net->feed_forward(s.x)[0] << "\n";
         }
     }
+    ImGui::EndDisabled();
 
+    ImGui::BeginDisabled(training);
+    ImGui::SeparatorText("Architecture");
+    ImGui::Text("Input: %d Neurons", sizes.front());
+
+    int removeIdx=-1;
+    for (int i=1; i + 1 < (int)sizes.size(); i++) {
+        ImGui::PushID(i);
+        ImGui::SetNextItemWidth(100);
+
+        //neuron input text input
+        ImGui::InputInt("###neurons", &sizes[i]);
+        sizes[i] = std::clamp(sizes[i], 1, 64);
+
+        //hidden neurons
+        ImGui::SameLine();
+        ImGui::Text("Hidden %d", i);
+
+        //remove neurons button
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Remove")) removeIdx = i;
+
+        ImGui::PopID();
+    }
+
+    if (removeIdx != -1) {
+        sizes.erase(sizes.begin() + removeIdx);
+    }
+
+    if (sizes.size() < 10 && ImGui::Button("Add Hidden Layer")) {
+        sizes.insert(sizes.end() - 1, 4);  //before hidden layer
+    }
+
+    ImGui::Text("Output: %d neurons", sizes.back());
+
+    if (sizes != net->getSizes()) {
+        ImGui::TextDisabled("Architecture changed: weights will be reset on Train");
+    }
+
+    ImGui::EndDisabled();
     ImGui::End();
 
     ImGui::Begin("Error Graph");
@@ -133,7 +179,7 @@ void Window::drawUI() {
 
     {
         std::lock_guard lk(lossMutex);
-        snap = history;
+        snap = latest_history;
     }
 
     if (ImPlot::BeginPlot("##loss", ImGui::GetContentRegionAvail())) {
@@ -145,15 +191,22 @@ void Window::drawUI() {
             ImPlot::SetupAxisScale(ImAxis_Y1, ImPlotScale_Log10);
         }
 
+        int i=0;
+        for (auto a : history) {
+            i++;
+
+            ImPlot::SetNextLineStyle(IMPLOT_AUTO_COL, 1.0f);
+            ImPlot::PlotLine(("Loss " + to_string(i)).c_str(), &a[0].x, &a[0].y, (int)a.size(), 0, 0, sizeof(glm::vec2));
+        }
+
         if (!snap.empty()) {
-            ImPlot::PlotLine("Loss", &snap[0].x, &snap[0].y, (int)snap.size(), 0, 0, sizeof(glm::vec2));
+            ImPlot::PlotLine("Latest Loss", &snap[0].x, &snap[0].y, (int)snap.size(), 0, 0, sizeof(glm::vec2));
         }
         ImPlot::EndPlot();
     }
 
     ImGui::End();
 }
-
 
 void Window::render() {
     glfwPollEvents();
