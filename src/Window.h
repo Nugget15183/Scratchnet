@@ -58,7 +58,11 @@ private:
     vector<vector<glm::vec2>> history;
 
     bool logscale = false;
-    int reportEvery = 500;
+    int reportEvery = 500;//epochs
+
+    //for mnist
+    std::shared_ptr<const vector<Sample>> trainSet;
+    bool resetOnTrain = true;
 
     //data
     vector<Sample> xorData = {

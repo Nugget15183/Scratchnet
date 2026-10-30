@@ -5,6 +5,7 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
+#include <numeric>
 
 using namespace util;
 
@@ -96,16 +97,22 @@ vector<float> Network::feed_forward(vector<float> a) {
 }
 
 void Network::train(vector<Sample> data, int epochs, int batch_size, float eta, int reportEvery, atomic_bool& cancelling, std::function<void(int, float)> err_callback) {
+    //shuffle the idx list instead of the data itself
+    vector<size_t> order(data.size());
+    iota(order.begin(), order.end(), 0);
+
     for (int e = 0; e < epochs; e++) {
         if (cancelling) break;
 
-        //shuffle the data to help reduce the chance of overfitting
-        shuffle(data.begin(), data.end(), rng);
+        //shuffle the order to help reduce the chance of overfitting
+        shuffle(order.begin(), order.end(), rng);
 
         //cut the data into batches to speed up testing
         for (size_t i = 0; i < data.size(); i+=batch_size) {
-            size_t end = std::min(i + (size_t)batch_size, data.size());
-            update_mini_batch(data, i, end, eta);
+            if (cancelling) break;
+
+            size_t end = std::min(i + (size_t)batch_size, order.size());
+            update_mini_batch(data, order, i, end, eta);
         }
 
         //give the output updates on how training is going
@@ -120,19 +127,39 @@ void Network::train(vector<Sample> data, int epochs, int batch_size, float eta, 
 }
 
 float Network::eval(vector<Sample> &test) {
+    size_t n = min<size_t>(test.size(), 2000);
     float err = 0;
 
-    for (auto &s : test) {
-        auto out = feed_forward(s.x);
+    for (size_t i = 0; i < n; i++) {
+        auto out = feed_forward(test[i].x);
 
         for (size_t j = 0; j < out.size(); ++j) {
-            err += (out[j] - s.y[j]) * (out[j] - s.y[j]);
+            err += (out[j] - test[i].y[j]) * (out[j] - test[i].y[j]);
         }
     }
 
     //average err
-    return err / test.size();
+    return err / n;
 }
+
+float Network::accuracy(vector<Sample> test) {
+    if (test.empty()) return 0;
+
+    auto argmax = [](const vector<float>& v) {
+        return max_element(v.begin(), v.end()) - v.begin();
+    };
+
+    size_t right = 0;
+
+    for (auto& s : test) {
+        if (argmax(feed_forward(s.x)) == argmax(s.y)) {
+            right++;
+        }
+    }
+
+    return (float)right / test.size();
+}
+
 
 void Network::backprop(Sample &s, Biases &nabla_b, Weights &nabla_w) {
     std::vector<std::vector<float>> activations{s.x}, zs;
@@ -188,7 +215,7 @@ void Network::backprop(Sample &s, Biases &nabla_b, Weights &nabla_w) {
     }
 }
 
-void Network::update_mini_batch(vector<Sample> &data, size_t begin, size_t end, float eta) {
+void Network::update_mini_batch(vector<Sample> &data, vector<size_t>& order, size_t begin, size_t end, float eta) {
     Biases nb = biases;
     Weights nw = weights;
 
@@ -203,7 +230,7 @@ void Network::update_mini_batch(vector<Sample> &data, size_t begin, size_t end, 
     }
 
     for (size_t i = begin; i < end; ++i) {
-        backprop(data[i], nb, nw);
+        backprop(data[order[i]], nb, nw);
     }
 
     //update the weights

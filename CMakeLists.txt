@@ -60,7 +60,8 @@ add_executable(ai_learning src/main.cpp
         src/Network.h
         src/Window.cpp
         src/Window.h
-        src/stb_image.h)
+        src/mnist.cpp
+        src/mnist.h)
 
 
 target_include_directories(ai_learning PRIVATE src)

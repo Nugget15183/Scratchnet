@@ -35,6 +35,11 @@ public:
 
     void ResetAdam();
 
+    float accuracy(vector<Sample> test);
+
+    bool save(string path);
+    bool load(string path);
+
     //activation functions used for hidden and output weights
     activation hiddenAct = activation::Sigmoid;
     activation outputAct = activation::Sigmoid;
@@ -66,7 +71,7 @@ private:
     std::mt19937 rng{std::random_device{}()};
 
     //updating batches within the training loop
-    void update_mini_batch(vector<Sample>& data, size_t begin, size_t end, float eta);
+    void update_mini_batch(vector<Sample>& data, vector<size_t>& order, size_t begin, size_t end, float eta);
 
     //backward gradient for updating hidden layers
     void backprop(Sample& s, Biases& nabla_b, Weights& nabla_w);

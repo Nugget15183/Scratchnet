@@ -30,13 +30,18 @@ A Customizable nerual network, built from scratch in C++.
 - - f(x) = sin x + 0.5 * sin x
 - bitwise operation training
 - cancel training at any time
+- MNIST image previewer aswell as bar graphs displaying the networks confidence guesses
 
 ## Things to Try
 1. Train XOR at ETA 0.5, then again with ADAM at ETA 0.01
 2. Teach sin(x) + 0.5 * sin(x) and add layers and change neuron counts as it improves
 3. Swap out Sigmoid for ReLU and watch how convergence changes
+4. Try 7 epochs of MNIST with, and without ADAM
 
-## Building
+## Downloading
+Go to the downloads page and download the latest release, unzip the file zipped download file and run the .exe
+
+## Building it yourself
 
 **Requirements:** a C++17 compiler, CMake, and any OpenGL 3.3 capable GPU.
 
@@ -53,7 +58,8 @@ cmake --build build
 ## Project Structure
 `Network. h/cpp` The network itself, handles backprop, the forward pass, and training as a whole \
 `Window. h/cpp` Handles the GUI, and allows the user to interact directly with their network \
-`util.h` Stores activation function formulas
+`util.h` Stores activation function formulas \
+`mnist. h/cpp` Handles the loading of the MNIST dataset
 
 ## How it works
 ### Training

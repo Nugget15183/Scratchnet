@@ -9,6 +9,7 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include "mnist.h"
 
 using namespace std;
 
@@ -29,6 +30,19 @@ struct LearnFn {
     mutex mtx;
 
     atomic_bool active = false;
+};
+
+struct MNISTState {
+    shared_ptr<const vector<Sample>> train, test;
+    atomic_bool active = false;
+    atomic<float> accuracy = 0.0f;
+    string status;
+
+    //confidence viewer
+    atomic<int> selected = 0;
+    mutex mtx;
+    vector<float> outputs;
+    int shownIndex = -1;
 };
 
 namespace {
@@ -68,7 +82,30 @@ namespace {
         lock_guard<mutex> lk(lf.mtx);
         lf.guesses = move(g);
     }
+
+    MNISTState mn;
 }
+
+template <class Net>
+void updatePreview(Net& net) {
+    if (!mn.test || mn.test->empty()) return;
+
+    auto s = net.getSizes();
+    if (s.front() != 784 || s.back() != 10) {
+        lock_guard<mutex> lk(mn.mtx);
+        mn.outputs.clear();
+        mn.shownIndex = -1;
+        return;
+    }
+
+    int idx = std::clamp(mn.selected.load(), 0, (int)mn.test->size() - 1);
+    auto out = net.feed_forward((*mn.test)[idx].x);
+
+    lock_guard<mutex> lk(mn.mtx);
+    mn.outputs = std::move(out);
+    mn.shownIndex = idx;
+}
+
 
 void setupStyle() {
     ImGuiStyle& style = ImGui::GetStyle();
@@ -150,17 +187,30 @@ void Window::update() {
 
         training = true;
 
-        trainThread = std::thread([this, d = data, ep = epochs, bs = batch_size, et = eta, re = reportEvery]() -> void {
-            net->train(d, ep, bs, et, re, cancelling, [this](int epochs, float err) -> void {
+        trainThread = std::thread([this, set = trainSet, ep = epochs, bs = batch_size, et = eta, re = reportEvery]() -> void {
+            net->train(*set, ep, bs, et, re, cancelling, [this](int epochs, float err) -> void {
                 {
                     lock_guard lk(lossMutex);
                    latest_history.push_back({epochs, err});
                 }
 
                 if (lf.active) {sampleGuess(*net);} //live guesses
+
+                if (mn.active && mn.test) {
+                    mn.accuracy = net->accuracy(*mn.test);
+                    updatePreview(*net);
+                }
             });
 
-            if (lf.active) {sampleGuess(*net); lf.active = false;} //final guess
+            if (lf.active) {
+                sampleGuess(*net);
+                lf.active = false;
+            }
+
+            if (mn.active) {
+                updatePreview(*net);
+            }
+
             training=false;
         });
     }
@@ -172,8 +222,15 @@ void Window::drawUI() {
     ImVec2 area = viewport->WorkSize;
 
     float leftw = area.x * 0.35f;
-    float rightw = area.x - leftw;
     float halfH = area.y * 0.5f;
+
+    auto prepNet = [&]() {
+        if (resetOnTrain || sizes != net->getSizes()) {
+            net->ResetWeightsToRand(sizes);
+        } else {
+            net->ResetAdam();
+        }
+    };
 
     ImGui::SetNextWindowPos(origin, ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(leftw, area.y), ImGuiCond_FirstUseEver);
@@ -199,13 +256,15 @@ void Window::drawUI() {
     ImGui::InputInt("Batches", &batch_size);
 
     if (ImGui::Button("Train")) {
-        lf.active=false;
+        lf.active = false;
+        mn.active = false;
 
         data=xorData;
+        trainSet = make_shared<const vector<Sample>>(data);
 
         sizes.front() = (int)xorData[0].x.size();
         sizes.back() = (int)xorData[0].y.size();
-        net->ResetWeightsToRand(sizes);
+        prepNet();
 
         if (training) {
             cancelling = true;
@@ -232,7 +291,7 @@ void Window::drawUI() {
     int h = (int)net->hiddenAct;
     if (ImGui::Combo("Hidden activation", &h, names, IM_ARRAYSIZE(names))) {
         net->hiddenAct = (activation)h;
-        net->ResetWeightsToRand(net->getSizes());
+        prepNet();
     }
 
     int removeIdx=-1;
@@ -328,6 +387,7 @@ void Window::drawUI() {
     if (ImGui::Button("Teach Function")) {
         //# of points
         int N = 200;
+        mn.active=false;
 
         lf.examples.clear();
         lf.targets.clear();
@@ -368,9 +428,11 @@ void Window::drawUI() {
         }
 
         //fit layer sizes to be compatible with learning functions
+        trainSet = make_shared<const vector<Sample>>(data);
+
         sizes.front() = 1;
         sizes.back() = 1;
-        net->ResetWeightsToRand(sizes);
+        prepNet();
 
         reportEvery = std::max(1, epochs / 200);
         lf.active = true;
@@ -410,6 +472,197 @@ void Window::drawUI() {
             ImPlot::EndPlot();
         } else {
             ImGui::TextDisabled("Pick a function and press the button.");
+        }
+    }
+
+    ImGui::End();
+
+
+    ImGui::SetNextWindowSize(ImVec2(560, 520), ImGuiCond_FirstUseEver);
+    ImGui::Begin("MNIST");
+
+    static char dir[256] = "data/mnist";
+    static int trainCount = 10000;
+
+    ImGui::InputText("Folder", dir, sizeof dir);
+    ImGui::SliderInt("Training images", &trainCount, 1000, 60000);
+
+    ImGui::BeginDisabled(training);
+    if (ImGui::Button("Load Dataset")) {
+        string d = dir;
+
+        auto tr = mnist::load(d + "/train-images.idx3-ubyte", d + "/train-labels.idx1-ubyte", trainCount);
+        auto te = mnist::load(d + "/t10k-images.idx3-ubyte", d + "/t10k-labels.idx1-ubyte", 2000);
+
+        if (tr.empty() || te.empty()) {
+            mn.status = "Couldn't read the MNIST files in " + d;
+        } else {
+            mn.status = "Loaded " + to_string(tr.size()) + " train / " + to_string(te.size()) + " test images";
+
+            mn.train = make_shared<const vector<Sample>>(std::move(tr));
+            mn.test  = make_shared<const vector<Sample>>(std::move(te));
+
+            mn.selected = 0;
+            updatePreview(*net);
+        }
+    }
+    ImGui::EndDisabled();
+
+    ImGui::BeginDisabled(training || !mn.train);
+    if (ImGui::Button("Train on MNIST")) {
+        lf.active = false;
+        mn.active = true;
+        mn.accuracy = 0.0f;
+
+        trainSet = mn.train;
+        sizes.front() = 784;
+        sizes.back() = 10;
+        prepNet();
+
+        reportEvery = 1;
+        updatePreview(*net);
+        beginTraining = true;
+    }
+    ImGui::EndDisabled();
+
+    if (!mn.status.empty()) {
+        ImGui::TextDisabled("%s", mn.status.c_str());
+    }
+
+    if (mn.test) {
+        ImGui::Text("Test accuracy: %.1f%%", mn.accuracy.load() * 100.0f);
+    }
+
+    ImGui::SeparatorText("Network Guess");
+    if (!mn.test) {
+        ImGui::TextDisabled("Load the dataset to see test images");
+    } else {
+        const int total = (int)mn.test->size();
+        int sel = std::clamp(mn.selected.load(), 0, total - 1);
+        bool changed = false;
+
+        //pick which test image to look at
+        if (ImGui::Button("<")) { sel = (sel + total - 1) % total; changed = true; }
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(200);
+        if (ImGui::SliderInt("##img", &sel, 0, total - 1, "Image %d")) changed = true;
+        ImGui::SameLine();
+        if (ImGui::Button(">")) { sel = (sel + 1) % total; changed = true; }
+        ImGui::SameLine();
+        if (ImGui::Button("Random")) {
+            static mt19937 pick{random_device{}()};
+            sel = uniform_int_distribution<int>(0, total - 1)(pick);
+            changed = true;
+        }
+
+        static bool normalize = false;
+        ImGui::Checkbox("Normalize to 100%", &normalize);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Each output neuron is an independent sigmoid, so the raw values\ndon't have to add up to 100%%.");
+        }
+
+        if (changed) {
+            mn.selected = sel;
+            if (!training) updatePreview(*net); //while training it refreshes after the next epoch
+        }
+
+        //grab a snapshot of the outputs
+        vector<float> out;
+        int shown;
+        {
+            lock_guard lk(mn.mtx);
+            out = mn.outputs;
+            shown = mn.shownIndex;
+        }
+
+        const Sample& smp = (*mn.test)[sel];
+        auto argmax = [](const vector<float>& v) { return (int)(max_element(v.begin(), v.end()) - v.begin()); };
+        const int truth = argmax(smp.y);
+
+        //only show bars that belong to the image on screen
+        const bool ready = out.size() == 10 && shown == sel;
+
+        float vals[10] = {};
+        int guess = 0;
+
+        if (ready) {
+            float sum = 0.0f;
+            for (float v : out) sum += v;
+
+            for (int i = 0; i < 10; i++) {
+                vals[i] = (normalize && sum > 1e-6f) ? out[i] / sum : out[i];
+            }
+            guess = argmax(out);
+
+            ImVec4 col = (guess == truth) ? ImVec4(0.3f, 0.9f, 0.4f, 1.0f) : ImVec4(1.0f, 0.4f, 0.4f, 1.0f);
+            ImGui::TextColored(col, "Guess: %d (%.1f%%)    Actual: %d", guess, vals[guess] * 100.0f, truth);
+        } else if (out.size() == 10) {
+            ImGui::TextDisabled("Actual: %d    (updates after the next epoch)", truth);
+        } else {
+            ImGui::TextDisabled("Actual: %d    (train on MNIST to see the network's guess)", truth);
+        }
+
+        //draw the 28x28 image
+        const float cell = 8.0f;
+        ImVec2 p = ImGui::GetCursorScreenPos();
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+
+        for (int r = 0; r < 28; r++) {
+            for (int c = 0; c < 28; c++) {
+                int v = (int)(smp.x[r * 28 + c] * 255.0f);
+
+                dl->AddRectFilled(ImVec2(p.x + c * cell, p.y + r * cell),
+                                  ImVec2(p.x + (c + 1) * cell, p.y + (r + 1) * cell),
+                                  IM_COL32(v, v, v, 255));
+            }
+        }
+        ImGui::Dummy(ImVec2(28 * cell, 28 * cell));
+
+        //confidence bars
+        ImGui::SameLine();
+
+        if (ImPlot::BeginPlot("##conf", ImVec2(-1, 28 * cell), ImPlotFlags_NoInputs | ImPlotFlags_NoTitle)) {
+            ImPlot::SetupAxes("Digit", "Confidence");
+            ImPlot::SetupAxisLimits(ImAxis_X1, -0.7, 9.7, ImPlotCond_Always);
+            ImPlot::SetupAxisLimits(ImAxis_Y1, 0.0, 1.15, ImPlotCond_Always);
+            ImPlot::SetupAxisTicks(ImAxis_X1, 0, 9, 10);
+
+            if (ready) {
+                //split into series so the guess and the right answer get their own colors
+                float others[10], guessBar[10] = {}, missed[10] = {};
+                for (int i = 0; i < 10; i++) others[i] = vals[i];
+
+                guessBar[guess] = vals[guess];
+                others[guess] = 0.0f;
+
+                if (guess != truth) {
+                    missed[truth] = vals[truth];
+                    others[truth] = 0.0f;
+                }
+
+                ImPlot::SetNextFillStyle(ImVec4(0.35f, 0.50f, 0.85f, 1.0f));
+                ImPlot::PlotBars("Other digits", others, 10);
+
+                ImPlot::SetNextFillStyle(guess == truth ? ImVec4(0.3f, 0.8f, 0.4f, 1.0f)
+                                                        : ImVec4(0.9f, 0.35f, 0.35f, 1.0f));
+                ImPlot::PlotBars("Network's guess", guessBar, 10);
+
+                if (guess != truth) {
+                    ImPlot::SetNextFillStyle(ImVec4(0.95f, 0.8f, 0.25f, 1.0f));
+                    ImPlot::PlotBars("Correct answer", missed, 10);
+                }
+
+                //percentage labels above each bar
+                for (int i = 0; i < 10; i++) {
+                    if (vals[i] < 0.01f) continue;
+
+                    char buf[16];
+                    snprintf(buf, sizeof buf, "%.0f%%", vals[i] * 100.0f);
+                    ImPlot::PlotText(buf, i, vals[i], ImVec2(0, -10));
+                }
+            }
+
+            ImPlot::EndPlot();
         }
     }
 
