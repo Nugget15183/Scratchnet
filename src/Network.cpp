@@ -15,7 +15,12 @@ void Network::ResetWeightsToRand(const vector<int> &newSizes) {
     weights.clear();
 
     for (size_t l = 0; l + 1 < sizes.size(); l++) {
-        normal_distribution<float> dist(0.0f, 1.0f / std::sqrt(sizes[l]));
+        auto activationf = (l + 2 == sizes.size()) ? outputAct : hiddenAct;
+        bool relu = (activationf == activation::ReLU || activationf == activation::LeakyReLU);
+
+        float distrib = relu ? sqrt(2.0f / sizes[l]) : 1.0f / sqrt((float)sizes[l]);
+
+        normal_distribution<float> dist(0.0f, distrib);
 
         biases.emplace_back(sizes[l + 1]);
         weights.emplace_back(sizes[l + 1], vector<float>(sizes[l]));
@@ -45,7 +50,7 @@ vector<float> Network::feed_forward(vector<float> a) {
                 z += weights[l][j][k] * a[k];
             }
 
-            next[j] = sigmoid(z);
+            next[j] = activationFor(l).f(z);
         }
 
         a = std::move(next);
@@ -108,7 +113,7 @@ void Network::backprop(Sample &s, Biases &nabla_b, Weights &nabla_w) {
                 z[j] += weights[l][j][k] * activations.back()[k];
             }
 
-            a[j] = sigmoid(z[j]);
+            a[j] = activationFor(l).f(z[j]);
         }
 
         zs.push_back(z);
@@ -120,7 +125,7 @@ void Network::backprop(Sample &s, Biases &nabla_b, Weights &nabla_w) {
     std::vector<float> delta(zs[L].size());
 
     for (size_t j = 0; j < delta.size(); ++j) {
-        delta[j] = (activations.back()[j] - s.y[j]) * sigmoid_derivative(zs[L][j]);
+        delta[j] = (activations.back()[j] - s.y[j]) * activationFor(L).df(zs[L][j]);
     }
 
     //walk back through layers
@@ -141,7 +146,7 @@ void Network::backprop(Sample &s, Biases &nabla_b, Weights &nabla_w) {
                     prev[k] += weights[l][j][k] * delta[j];
                 }
 
-                prev[k] *= sigmoid_derivative(zs[l - 1][k]);
+                prev[k] *= activationFor(l - 1).df(zs[l - 1][k]);
             }
 
             delta = std::move(prev);

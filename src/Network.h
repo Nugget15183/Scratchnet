@@ -28,6 +28,14 @@ public:
 
     //trains the weights and biases in the neruons
     void train(vector<Sample> data, int epochs, int batch_size, float eta, int reportEvery, atomic_bool& cancel, std::function<void(int, float)> err_callback=nullptr);
+
+    activationFn activationFor(size_t layer) const {
+        return getActivation(layer + 1 == weights.size() ? outputAct : hiddenAct);
+    }
+
+    //activation functions used for hidden and output weights
+    activation hiddenAct = activation::Sigmoid;
+    activation outputAct = activation::Sigmoid;
 private:
     //define weights and biases
     using Biases = vector<vector<float>>;
