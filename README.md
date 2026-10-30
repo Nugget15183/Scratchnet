@@ -1,6 +1,8 @@
 # Scratchnet
 A Customizable nerual network, built from scratch in C++.
 
+<img width="1920" height="1080" alt="Screenshot (901)" src="https://github.com/user-attachments/assets/01fda28a-47f8-4083-9ab1-d2a557f74fa8" />
+
 ## Features
 
 **Network**
@@ -13,11 +15,12 @@ A Customizable nerual network, built from scratch in C++.
   - Leaky ReLU
 - Weight initialization matches the selected activation function
   - He (ReLU and Leaky ReLU)
-  - Xavier (everything except ReLUs)
+  - Xavier (used foreverything except the ReLUs)
 - Mini-batch training that gets shuffled each epoch
 - Two different optimizers to chose from
   - ADAM (Comes with adjustable B1 and B2)
   - SGD
+- Compatible with the MNIST dataset for training and testing
 
 **GUI**
 - Training is run on a background thread, so the ui stays responsive
@@ -66,3 +69,8 @@ cmake --build build
 Training uses mini batch gradient descent (in laymans terms, it splits the data into parts (batches), shuffles them around, and teaches the network on one batch at a time). Gradients are summed over each batch by backpropagation, then averaged and applied.
 
 There are two methods in which we apply those averages, one being SGD which uses the formula `w -= eta * g`. The other being ADAM, which keeps track of a gradient `m` and its square `v`, corrects bias then steps by the formula `eta * m̂ / (√v̂ + ε)` 
+
+# Some results from training it on the MNIST dataset
+<img width="1324" height="670" alt="Screenshot 2026-10-30 160705" src="https://github.com/user-attachments/assets/ff8f005d-cabf-413c-85dd-40ef291b3716" />
+<img width="1328" height="633" alt="Screenshot 2026-10-30 160721" src="https://github.com/user-attachments/assets/9006e0f5-9193-4004-b1a1-7a14340e9df4" />
+<img width="1323" height="625" alt="Screenshot 2026-10-30 160711" src="https://github.com/user-attachments/assets/ae12eac8-ebc5-4cf3-8441-f255d8429670" />
