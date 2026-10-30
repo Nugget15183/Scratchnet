@@ -167,6 +167,16 @@ void Window::update() {
 }
 
 void Window::drawUI() {
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImVec2 origin = viewport->WorkPos;
+    ImVec2 area = viewport->WorkSize;
+
+    float leftw = area.x * 0.35f;
+    float rightw = area.x - leftw;
+    float halfH = area.y * 0.5f;
+
+    ImGui::SetNextWindowPos(origin, ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(leftw, area.y), ImGuiCond_FirstUseEver);
     ImGui::Begin("Parameters");
 
     ImGui::SliderFloat("ETA", &eta, 0.0001f, 5.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
@@ -262,6 +272,10 @@ void Window::drawUI() {
     ImGui::EndDisabled();
     ImGui::End();
 
+
+    ImGui::SetNextWindowPos(ImVec2(origin.x + leftw, origin.y), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(halfH, halfH), ImGuiCond_FirstUseEver);
+
     ImGui::Begin("Error Graph");
     ImGui::Checkbox("Log Scale", &logscale);
 
@@ -274,7 +288,7 @@ void Window::drawUI() {
 
     if (ImPlot::BeginPlot("##loss", ImGui::GetContentRegionAvail())) {
         //label the axes
-        ImPlot::SetupAxes("Epoch", "Loss", ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
+        ImPlot::SetupAxes("Epoch", "Error", ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
 
         //toggle between log scale and linear
         if (logscale) {
@@ -296,6 +310,10 @@ void Window::drawUI() {
     }
 
     ImGui::End();
+
+
+    ImGui::SetNextWindowPos(ImVec2(origin.x + leftw, origin.y + halfH), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(halfH, halfH), ImGuiCond_FirstUseEver);
 
     ImGui::Begin("Learn Function");
     ImGui::BeginDisabled(training);
