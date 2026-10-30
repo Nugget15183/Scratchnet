@@ -3,8 +3,42 @@
 #include <functional>
 #include <iostream>
 #include <vector>
+#include <cmath>
+#include <algorithm>
 
 using namespace util;
+
+void Network::ResetAdam() {
+    //reset adam's biases and weights to the default
+    mb = biases;
+    vb = biases;
+    mw = weights;
+    vw = weights;
+
+    for (auto& v : mb) {
+        fill(v.begin(), v.end(), 0.0f);
+    }
+
+    for (auto& v : vb) {
+        fill(v.begin(), v.end(), 0.0f);
+    }
+
+    for (auto& m : mw) {
+        for (auto& v : m) {
+            fill(v.begin(), v.end(), 0.0f);
+        }
+    }
+
+    for (auto& m : vw) {
+        for (auto& v : m) {
+            fill(v.begin(), v.end(), 0.0f);
+        }
+    }
+
+    //reset the time to 0
+    t = 0;
+}
+
 
 void Network::ResetWeightsToRand(const vector<int> &newSizes) {
     sizes = newSizes;
@@ -33,6 +67,8 @@ void Network::ResetWeightsToRand(const vector<int> &newSizes) {
             for (auto& w : row) w = dist(rng);
         }
     }
+
+    ResetAdam();
 }
 
 Network::Network(const vector<int> &sizes) {
@@ -75,8 +111,6 @@ void Network::train(vector<Sample> data, int epochs, int batch_size, float eta, 
         //give the output updates on how training is going
         if (e % reportEvery == 0) {
             float err = eval(data);
-
-            cout << "Epoch " << e << " Error: " << err << endl;
 
             if (err_callback != nullptr) {
                 err_callback(e, err);
@@ -172,14 +206,48 @@ void Network::update_mini_batch(vector<Sample> &data, size_t begin, size_t end, 
         backprop(data[i], nb, nw);
     }
 
-    float scale = eta / (end - begin);
+    //update the weights
+    float invN = 1.0f / (end - begin);
+
+    if (!useAdam) {
+        //non-adam update loop
+        float scale = eta * invN;
+
+        for (size_t l = 0; l < weights.size(); ++l) {
+            for (size_t j = 0; j < weights[l].size(); ++j) {
+                biases[l][j] -= scale * nb[l][j];
+
+                for (size_t k = 0; k < weights[l][j].size(); ++k) {
+                    weights[l][j][k] -= scale * nw[l][j][k];
+                }
+            }
+        }
+        return;
+    }
+
+    //adam optimizer, much faster then sgd
+    t++;
+    float bc1 = 1.0f - pow(beta1, t);
+    float bc2 = 1.0f - pow(beta2, t);
 
     for (size_t l = 0; l < weights.size(); ++l) {
         for (size_t j = 0; j < weights[l].size(); ++j) {
-            biases[l][j] -= scale * nb[l][j];
+            //update biases
+            float g = nb[l][j] * invN;
+
+            mb[l][j] = beta1 * mb[l][j] + (1.0f - beta1) * g;
+            vb[l][j] = beta2 * vb[l][j] + (1.0f - beta2) * g * g;
+
+            biases[l][j] -= eta * (mb[l][j] / bc1) / (sqrt(vb[l][j] / bc2) + epsilon);
 
             for (size_t k = 0; k < weights[l][j].size(); ++k) {
-                weights[l][j][k] -= scale * nw[l][j][k];
+                //update weights
+                float gw = nw[l][j][k] * invN;
+
+                mw[l][j][k] = beta1 * mw[l][j][k] + (1.0f - beta1) * gw;
+                vw[l][j][k] = beta2 * vw[l][j][k] + (1.0f - beta2) * gw * gw;
+
+                weights[l][j][k] -= eta * (mw[l][j][k] / bc1) / (sqrt(vw[l][j][k] / bc2) + epsilon);
             }
         }
     }

@@ -48,7 +48,6 @@ private:
     float eta = 3.0f;
     int batch_size = 4;
     int epochs = 5000;
-    bool resetWeights = true;
     vector<int> sizes = {2, 4, 1};
 
     //x is epoch y is loss
@@ -62,28 +61,14 @@ private:
     int reportEvery = 500;
 
     //data
-    vector<Sample> data = {
-        //input output pair 1
-        {
-            {0, 0},
-            {0}
-        },
-        //input output pair 2
-        {
-                    {0, 1},
-                    {1}
-        },
-        //input output pair 3
-        {
-                    {1, 0},
-                    {1}
-        },
-        //input output pair 4
-        {
-                    {1, 1},
-                    {0}
-        }
+    vector<Sample> xorData = {
+        {{0, 0}, {0}},
+        {{0, 1}, {1}},
+        {{1, 0}, {1}},
+        {{1, 1}, {0}}
     };
+
+    vector<Sample> data = xorData;
 };
 
 

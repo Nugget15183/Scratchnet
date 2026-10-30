@@ -33,9 +33,16 @@ public:
         return getActivation(layer + 1 == weights.size() ? outputAct : hiddenAct);
     }
 
+    void ResetAdam();
+
     //activation functions used for hidden and output weights
     activation hiddenAct = activation::Sigmoid;
     activation outputAct = activation::Sigmoid;
+
+    float beta1 = 0.9f;
+    float beta2 = 0.999f;
+    float epsilon = 1e-8f;
+    bool useAdam = true;
 private:
     //define weights and biases
     using Biases = vector<vector<float>>;
@@ -47,6 +54,13 @@ private:
     //biases + weights
     Biases biases;
     Weights weights;
+
+    //adam's biases and weights
+    Biases mb, vb;
+    Weights mw, vw;
+
+    //time counter
+    long long t = 0;
 
     //initalize rng
     std::mt19937 rng{std::random_device{}()};

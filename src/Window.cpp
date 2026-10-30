@@ -140,11 +140,6 @@ void Window::update() {
         beginTraining = false;
         cancelling = false;
 
-        if (resetWeights || sizes != net->getSizes()) {
-            net->ResetWeightsToRand(sizes);
-        }
-
-
         {
             lock_guard lk(lossMutex);
             if (!latest_history.empty()) {
@@ -165,7 +160,7 @@ void Window::update() {
                 if (lf.active) {sampleGuess(*net);} //live guesses
             });
 
-            if (lf.active) {sampleGuess(*net);} //final guess
+            if (lf.active) {sampleGuess(*net); lf.active = false;} //final guess
             training=false;
         });
     }
@@ -174,13 +169,34 @@ void Window::update() {
 void Window::drawUI() {
     ImGui::Begin("Parameters");
 
-    ImGui::SliderFloat("Learning Rate", &learning_rate, 0.000001f, 1.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
-    ImGui::SliderFloat("ETA", &eta, 0.1f, 10.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
+    ImGui::SliderFloat("ETA", &eta, 0.0001f, 5.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
+    if (net->useAdam && eta >= 1.0f) {
+        ImGui::TextDisabled("It is recommended that ETA stays < 1.0 While using Adam");
+    }
+
+    ImGui::BeginDisabled(training);
+
+    ImGui::Checkbox("Use Adam", &net->useAdam);
+
+    if (net->useAdam) {
+        ImGui::SliderFloat("Beta 1", &net->beta1, 0.5f, 0.999f, "%.3f", ImGuiSliderFlags_Logarithmic);
+        ImGui::SliderFloat("Beta 2", &net->beta2, 0.9f, 0.9999f, "%.4f", ImGuiSliderFlags_Logarithmic);
+    }
+
+    ImGui::EndDisabled();
+
     ImGui::InputInt("Epochs", &epochs);
     ImGui::InputInt("Batches", &batch_size);
-    ImGui::Checkbox("Reset Weights On Train", &resetWeights);
 
     if (ImGui::Button("Train")) {
+        lf.active=false;
+
+        data=xorData;
+
+        sizes.front() = (int)xorData[0].x.size();
+        sizes.back() = (int)xorData[0].y.size();
+        net->ResetWeightsToRand(sizes);
+
         if (training) {
             cancelling = true;
         }
@@ -190,7 +206,10 @@ void Window::drawUI() {
     ImGui::BeginDisabled(training);
     if (ImGui::Button("Test On Current Training Data")) {
         for (auto& s : data) {
-            std::cout << s.x[0] << "," << s.x[1] << " -> " << net->feed_forward(s.x)[0] << "\n";
+            for (size_t i = 0; i < s.x.size(); i++) {
+                std::cout << s.x[i] << (i + 1 < s.x.size() ? ", " : "");
+            }
+            std::cout << " -> " << net->feed_forward(s.x)[0] << "\n";
         }
     }
     ImGui::EndDisabled();
@@ -278,7 +297,6 @@ void Window::drawUI() {
 
     ImGui::End();
 
-
     ImGui::Begin("Learn Function");
     ImGui::BeginDisabled(training);
 
@@ -332,7 +350,8 @@ void Window::drawUI() {
         }
 
         //fit layer sizes to be compatible with learning functions
-        if (sizes.front() != 1 || sizes.back() != 1) sizes = { 1, 16, 16, 1 };
+        sizes.front() = 1;
+        sizes.back() = 1;
         net->ResetWeightsToRand(sizes);
 
         reportEvery = std::max(1, epochs / 200);
@@ -362,7 +381,7 @@ void Window::drawUI() {
         }
 
         if (ImPlot::BeginPlot("##fn", ImVec2(-1, ImGui::GetContentRegionAvail().y))) {
-            ImPlot::SetupAxes("x", "y");
+            ImPlot::SetupAxes("x", "f(x)");
 
             ImPlot::PlotLine("Target", lf.examples.data(), lf.targets.data(), (int)lf.examples.size());
 
